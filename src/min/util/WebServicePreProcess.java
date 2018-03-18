@@ -95,12 +95,14 @@ public class WebServicePreProcess
 		StringBuffer sb = null;
 		String[] sentences = null;
 		int totalAPItags = 0, totalAPiterms = 0;
+		Map<String, String> api2category = new HashMap<String, String>();
 		while(creader.readRecord())
 		{
 			tags = creader.get(1).trim(); //get the tags
 			name = creader.get(0).trim().toLowerCase();
 			if(name.trim().equals("")) continue;
 			categories = creader.get(3).trim();
+			api2category.put(name, categories);
 			lineRead = creader.get(2).trim(); //get the whole description
 			sentences = lineRead.split("\\. "); //split the whole description into sentences 
 			if(!apiList.contains(name)) apiList.add(name.trim());
@@ -187,6 +189,9 @@ public class WebServicePreProcess
 		creader.skipLine();
 		int  totallinks = 0;
 		int totalMashuptags = 0, totalMashupterms = 0;
+		int validMCount = 0, validSCount = 0, diffCCount = 0;
+		List<String> clist = null;
+		double accumulativeDiffC = 0;
 		while(creader.readRecord())
 		{
 			tags = creader.get(1).trim(); //get the tags
@@ -203,13 +208,18 @@ public class WebServicePreProcess
 			bwFileNum.newLine();
 			if(memberAPIs != null) //if the current mashup has at least one member API
 			{
+				validMCount++;
 				curMashupNo = mashupList.indexOf(name.trim());
+				validSCount = memberAPIs.length; // number of composed services
+				clist = new ArrayList<String>();
+				diffCCount = 0;
 				for(String api : memberAPIs)
 				{
 					curAPINo = apiList.indexOf(api.toLowerCase().trim());
 					if(curAPINo == -1) 
 					{
 //						System.out.println(curMashupNo + " " + name.trim() + "  " + api.toLowerCase());
+						validSCount--;
 						continue;
 					}
 					if(!apiHostMashups.containsKey(curAPINo)) 
@@ -222,7 +232,19 @@ public class WebServicePreProcess
 					{
 						apiHostMashups.get(curAPINo).add(curMashupNo);
 					}
-					
+					if(!clist.contains(api2category.get(api.toLowerCase().trim())))
+					{
+						clist.add(api2category.get(api.toLowerCase().trim()));
+						diffCCount++;
+					}
+				}
+				if(diffCCount <= 0)
+				{
+					validMCount--;
+				}
+				else
+				{
+					accumulativeDiffC += (double)diffCCount / (double)validSCount;
 				}
 			}
 			//process the whole description
@@ -279,6 +301,8 @@ public class WebServicePreProcess
 			bwTagNameCategory.write(sb.toString().trim());
 			bwTagNameCategory.newLine();
 		}
+		accumulativeDiffC = accumulativeDiffC / validMCount;
+		System.out.println("the probability of belonging to different functional domains: " + accumulativeDiffC);
 		System.out.println("totallinks="+totallinks);
 		System.out.println("totalAPItags="+totalAPItags);
 		System.out.println("totalAPiterms="+totalAPiterms);
